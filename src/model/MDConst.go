@@ -33,7 +33,6 @@ type redisS struct {
 }
 
 type proxyS struct {
-	ProxyHost string
 	ProxyHub  map[string]interface{}
 }
 
@@ -212,7 +211,6 @@ func (*Const) Ontology() Const {
 			"/static/temp/",
 		},
 		proxyS{
-			"",
 			map[string]interface{}{
 				"TCP":      map[string]interface{}{},
 				"UDP":      map[string]interface{}{},

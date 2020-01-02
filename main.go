@@ -21,7 +21,7 @@ import (
 
 const tag = "Neuron"
 
-/* Application */
+//* Application */
 var application struct {
 	looperStopC chan bool
 	// 神经元指针
@@ -34,9 +34,9 @@ var application struct {
 	serverHub *model.QueueS
 }
 
-/* ================================ EVENT ================================ */
+//* ================================ EVENT ================================ */
 
-/* 循环事件 */
+//* 循环事件 */
 func looperEvent() {
 	brain := application.neuron.Brain
 	// 开发环境显示服务器数量
@@ -69,7 +69,7 @@ func looperEvent() {
 	}, brain.Const.Interval.HZ1Interval, application.looperStopC)
 }
 
-/* 退出事件 */
+//* 退出事件 */
 func exitEvent(exitSignal ...string) {
 	// 服务栈销毁
 	for e := application.serverHub.Front(); e != nil; e = e.Next() {
@@ -108,7 +108,7 @@ func exitEvent(exitSignal ...string) {
 	os.Exit(0)
 }
 
-/* 监听系统退出信号 */
+//* 监听系统退出信号 */
 func sysExitSignalEvent() {
 	go func() {
 		exitSignal := <-application.sysExitSignalC
@@ -137,7 +137,7 @@ func init() {
 
 //* ================================ SERVICE ================================ */
 
-/* Server Process -> HTTP */
+//* Server Process -> HTTP */
 func serverProcess() *model.ServerS {
 	// server init
 	server := new(model.ServerS)
@@ -251,15 +251,15 @@ func serverProcess() *model.ServerS {
 
 		application.neuron.Brain.LogGenerater(model.LogInfo, tag, server.Tag, "Prepared..")
 
-		go protocalHTTP(server, mux)
+		go protocolHTTP(server, mux)
 		if application.neuron.Brain.Const.HTTPS.Open {
-			go protocalTLS(server, mux)
+			go protocolTLS(server, mux)
 		}
 	})
 	return server
 }
 
-func protocalHTTP(server *model.ServerS, mux *http.ServeMux) {
+func protocolHTTP(server *model.ServerS, mux *http.ServeMux) {
 	// HTTP Listen Port
 	listenPort := strconv.Itoa(application.neuron.Brain.Const.HTTPServer.Port)
 	listenAddr := application.neuron.Brain.Const.HTTPServer.Host + ":" + listenPort
@@ -267,13 +267,13 @@ func protocalHTTP(server *model.ServerS, mux *http.ServeMux) {
 	err := http.ListenAndServe(listenAddr, mux)
 	if err != nil {
 		application.neuron.Brain.MessageHandler(tag, "Protocal -> HTTP", 204, err)
-		protocalTLS(server, mux)
+		protocolTLS(server, mux)
 		return
 	}
 	server.Alive <- false
 }
 
-func protocalTLS(server *model.ServerS, mux *http.ServeMux) {
+func protocolTLS(server *model.ServerS, mux *http.ServeMux) {
 	// Listen Port
 	listenPort := strconv.Itoa(application.neuron.Brain.Const.HTTPS.TLSPort)
 	listenAddr := application.neuron.Brain.Const.HTTPServer.Host + ":" + listenPort
@@ -288,7 +288,7 @@ func protocalTLS(server *model.ServerS, mux *http.ServeMux) {
 	server.Alive <- false
 }
 
-/* ================================ MAIN ================================ */
+//* ================================ MAIN ================================ */
 
 func main() {
 	// push main process -> Neuron
@@ -311,7 +311,7 @@ func main() {
 	looperEvent()
 }
 
-/* ================================ TEST ================================ */
+//* ================================ TEST ================================ */
 
 // 测试代码
 func testCode(request interface{}) {
@@ -320,7 +320,7 @@ func testCode(request interface{}) {
 	application.neuron.Brain.LogGenerater(model.LogInfo, tag, "TESTCode", "Finished..")
 }
 
-/* ================================ DEVELOP ================================ */
+//* ================================ DEVELOP ================================ */
 
 // 开发代码
 func devCode(request interface{}) {
