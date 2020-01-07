@@ -129,7 +129,7 @@ type Const struct {
 func (*Const) Ontology() Const {
 	return Const{
 		0,
-		"1.4.7",
+		"1.4.8",
 		"Neuron",
 		"___",
 		"ws://127.0.0.1:8800/Commander/Channel",

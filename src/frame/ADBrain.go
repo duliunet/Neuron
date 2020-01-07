@@ -406,7 +406,11 @@ func (brain *BrainS) ClearInterval(stopC chan bool) {
 
 //* 超时循环 */
 /*
+<<<<<<< HEAD
+	104 -> 超时
+=======
 104 -> 超时
+>>>>>>> 91cdc91
 */
 func (brain *BrainS) SetTimeoutInterval(next func() (int, interface{}), callback func(code int, data interface{}), interval int, timeout int) {
 	nextName := brain.GetFuncName(next)

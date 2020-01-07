@@ -203,8 +203,8 @@ func (hub *SyncMapHub) Iterator(cb func(n int, k string, v interface{}) bool) {
 	}
 }
 
-//* 指针处理时锁[防止引用过程中锁无效] */
-func (hub *SyncMapHub) PointerProcess(k string, cb func()) {
+//* 原子操作[防止指针引用过程中锁无效] */
+func (hub *SyncMapHub) AtomProcess(k string, cb func()) {
 	if hub.mapShard == nil {
 		return
 	}

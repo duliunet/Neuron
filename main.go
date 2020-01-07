@@ -326,6 +326,6 @@ func testCode(request interface{}) {
 func devCode(request interface{}) {
 	brain := application.neuron.Brain
 	brain.LogGenerater(model.LogInfo, tag, "DevCode", "Runing..")
-	
+
 	brain.LogGenerater(model.LogInfo, tag, "DevCode", "Finished..")
 }
