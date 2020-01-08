@@ -1,8 +1,4 @@
 # Neuron
-<<<<<<< HEAD
-A powerful HTTP / Websocket server, which can be used for the development of microservice framework, IoT, distributed crawlers or controllers
-=======
-
 一款强大的HTTP / Websocket服务器，可用于开发微服务框架，IoT，分布式爬网程序。
 
 ## 特点
@@ -66,4 +62,3 @@ A powerful HTTP / Websocket server, which can be used for the development of mic
     }
 }
 ```
->>>>>>> 91cdc91
