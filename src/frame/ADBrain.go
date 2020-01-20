@@ -12,6 +12,7 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"compress/zlib"
+	"crypto"
 	"crypto/cipher"
 	"crypto/hmac"
 	"crypto/md5"
@@ -19,7 +20,6 @@ import (
 	"crypto/rsa"
 	"crypto/sha1"
 	"crypto/sha256"
-	"crypto/sha512"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
@@ -1928,97 +1928,209 @@ func (brain *BrainS) CRC(b []byte) byte {
 	return ^checksum + 1
 }
 
-//* 生成新的Key对 */
-func (brain *BrainS) GenerateKeyPair(bits int) (*rsa.PrivateKey, *rsa.PublicKey) {
+//* 生成新的RSAKey */
+func (brain *BrainS) GenerateRSAKey(bitss ...int) *rsa.PrivateKey {
+	bits := 1024
+	if len(bitss) > 0 {
+		bits = bitss[0]
+	}
 	privkey, err := rsa.GenerateKey(randc.Reader, bits)
 	if err != nil {
-		brain.LogGenerater(model.LogError, brain.tag, "GenerateKeyPair", err)
+		brain.LogGenerater(model.LogError, brain.tag, "GenerateRSAKey", err)
 	}
-	return privkey, &privkey.PublicKey
+	return privkey
 }
 
 //* PrivateKey流转化 */
-func (brain *BrainS) PrivateKeyToBytes(priv *rsa.PrivateKey) []byte {
+func (brain *BrainS) PrivateKey2Bytes(key *rsa.PrivateKey) []byte {
 	privBytes := pem.EncodeToMemory(
 		&pem.Block{
 			Type:  "RSA PRIVATE KEY",
-			Bytes: x509.MarshalPKCS1PrivateKey(priv),
+			Bytes: x509.MarshalPKCS1PrivateKey(key),
 		},
 	)
 	return privBytes
 }
-func (brain *BrainS) BytesToPrivateKey(priv []byte) *rsa.PrivateKey {
+func (brain *BrainS) Bytes2PrivateKey(priv []byte) *rsa.PrivateKey {
 	block, _ := pem.Decode(priv)
+	block.Type = "RSA PRIVATE KEY"
 	enc := x509.IsEncryptedPEMBlock(block)
 	b := block.Bytes
 	var err error
 	if enc {
-		brain.LogGenerater(model.LogInfo, brain.tag, "BytesToPrivateKey[enc]", "Is encrypted pem block")
+		brain.LogGenerater(model.LogInfo, brain.tag, "Bytes2PrivateKey[enc]", "Is encrypted pem block")
 		b, err = x509.DecryptPEMBlock(block, nil)
 		if err != nil {
-			brain.LogGenerater(model.LogError, brain.tag, "BytesToPrivateKey[DecryptPEMBlock]", err)
+			brain.LogGenerater(model.LogError, brain.tag, "Bytes2PrivateKey[DecryptPEMBlock]", err)
 		}
 	}
 	key, err := x509.ParsePKCS1PrivateKey(b)
 	if err != nil {
-		brain.LogGenerater(model.LogError, brain.tag, "BytesToPrivateKey[ParsePKCS1PrivateKey]", err)
+		brain.LogGenerater(model.LogError, brain.tag, "Bytes2PrivateKey[ParsePKCS1PrivateKey]", err)
 	}
 	return key
 }
 
 //* PublicKey流转化 */
-func (brain *BrainS) PublicKeyToBytes(pub *rsa.PublicKey) []byte {
-	pubASN1, err := x509.MarshalPKIXPublicKey(pub)
-	if err != nil {
-		brain.LogGenerater(model.LogError, brain.tag, "PublicKeyToBytes", err)
-	}
-	pubBytes := pem.EncodeToMemory(&pem.Block{
-		Type:  "RSA PUBLIC KEY",
-		Bytes: pubASN1,
-	})
+func (brain *BrainS) PublicKey2Bytes(key *rsa.PublicKey) []byte {
+	pubBytes := pem.EncodeToMemory(
+		&pem.Block{
+			Type: "RSA PUBLIC KEY",
+			Bytes: x509.MarshalPKCS1PublicKey(key),
+		},
+	)
 	return pubBytes
 }
-func (brain *BrainS) BytesToPublicKey(pub []byte) *rsa.PublicKey {
+func (brain *BrainS) Bytes2PublicKey(pub []byte) *rsa.PublicKey {
 	block, _ := pem.Decode(pub)
+	block.Type = "RSA PUBLIC KEY"
 	enc := x509.IsEncryptedPEMBlock(block)
 	b := block.Bytes
 	var err error
 	if enc {
-		brain.LogGenerater(model.LogInfo, brain.tag, "BytesToPublicKey[enc]", "Is encrypted pem block")
+		brain.LogGenerater(model.LogInfo, brain.tag, "Bytes2PublicKey[enc]", "Is encrypted pem block")
 		b, err = x509.DecryptPEMBlock(block, nil)
 		if err != nil {
-			brain.LogGenerater(model.LogError, brain.tag, "BytesToPublicKey[DecryptPEMBlock]", err)
+			brain.LogGenerater(model.LogError, brain.tag, "Bytes2PublicKey[DecryptPEMBlock]", err)
 		}
 	}
-	ifc, err := x509.ParsePKIXPublicKey(b)
+	key, err := x509.ParsePKCS1PublicKey(b)
 	if err != nil {
-		brain.LogGenerater(model.LogError, brain.tag, "BytesToPublicKey[ParsePKIXPublicKey]", err)
-	}
-	key, ok := ifc.(*rsa.PublicKey)
-	if !ok {
-		brain.LogGenerater(model.LogError, brain.tag, "BytesToPublicKey[ifc]", err)
+		brain.LogGenerater(model.LogError, brain.tag, "Bytes2PublicKey[ParsePKCS1PublicKey]", err)
 	}
 	return key
 }
 
-//* 通过PrivateKey加密 */
-func (brain *BrainS) EncryptWithPublicKey(msg []byte, pub *rsa.PublicKey) []byte {
-	hash := sha512.New()
-	ciphertext, err := rsa.EncryptOAEP(hash, randc.Reader, pub, msg, nil)
-	if err != nil {
-		brain.LogGenerater(model.LogError, brain.tag, "EncryptWithPublicKey[EncryptOAEP]", err)
+//* 根据长度切割字节 */
+func (brain *BrainS) SplitBySize(plain []byte, size int) [][]byte {
+	var result [][]byte
+	plainLen := len(plain)
+	for i := 0; i < plainLen/size; i++ {
+		result = append(result, plain[size*i:size*(i+1)])
 	}
-	return ciphertext
+	plainMod := plainLen % size
+	if plainMod > 0 {
+		result = append(result, plain[plainLen-plainMod:])
+	}
+	return result
 }
 
-//* 通过PrivateKey解密 */
-func (brain *BrainS) DecryptWithPrivateKey(ciphertext []byte, priv *rsa.PrivateKey) []byte {
-	hash := sha512.New()
-	plaintext, err := rsa.DecryptOAEP(hash, randc.Reader, priv, ciphertext, nil)
-	if err != nil {
-		brain.LogGenerater(model.LogError, brain.tag, "DecryptWithPrivateKey[DecryptOAEP]", err)
+//* RSA -> 加密 */
+func (brain *BrainS) RSAEncrypt(plain []byte, pub *rsa.PublicKey) []byte {
+	var buf bytes.Buffer
+	//如果明文大约密钥长度-11 需要分段加密
+	blockSize := (pub.N.BitLen() + 7) / 8 - 11
+	blockSlice := brain.SplitBySize(plain, blockSize)
+	for _, v := range blockSlice {
+		cipher, err := rsa.EncryptPKCS1v15(randc.Reader, pub, v)
+		if err != nil {
+			brain.LogGenerater(model.LogError, brain.tag, "RSAEncrypt", err)
+		}
+		buf.Write(cipher)
 	}
-	return plaintext
+	return buf.Bytes()
+}
+
+//* RSA -> 解密 */
+func (brain *BrainS) RSADecrypt(cipher []byte, priv *rsa.PrivateKey) []byte {
+	var buf bytes.Buffer
+	blockSize := (priv.N.BitLen() + 7) / 8
+	blockSlice := brain.SplitBySize(cipher, blockSize)
+	for _, v := range blockSlice {
+		plain, err := rsa.DecryptPKCS1v15(randc.Reader, priv, v)
+		if err != nil {
+			brain.LogGenerater(model.LogError, brain.tag, "RSADecrypt", err)
+		}
+		buf.Write(plain)
+	}
+	return buf.Bytes()
+}
+
+//* RSA -> 签名 */
+func (brain *BrainS) RSASign(priv *rsa.PrivateKey, plain []byte) []byte {
+	shash := sha256.New()
+	shash.Write(plain)
+	signedPlain, err := rsa.SignPKCS1v15(randc.Reader, priv, crypto.SHA256, shash.Sum(nil))
+	if err != nil {
+		brain.LogGenerater(model.LogError, brain.tag, "RSASign", err)
+	}
+	return signedPlain
+}
+
+//* RSA -> 验证 */
+func (brain *BrainS) RSAVerify(pub *rsa.PublicKey, plain, signature []byte) bool {
+	shash := sha256.New()
+	shash.Write(plain)
+	err := rsa.VerifyPKCS1v15(pub, crypto.SHA256, shash.Sum(nil), signature)
+	if err != nil {
+		brain.LogGenerater(model.LogError, brain.tag, "RSAVerify", err)
+		return false
+	}
+	return true
+}
+
+//* RSA -> OAEP加密 */
+func (brain *BrainS) RSAEncryptOAEP(plain []byte, pub *rsa.PublicKey, salts ...[]byte) []byte {
+	var buf bytes.Buffer
+	shash := sha256.New()
+	//如果明文大约密钥长度-2倍sha长度-2，需要分段加密
+	blockSize := (pub.N.BitLen() + 7) / 8 - 2 * shash.Size() - 2
+	blockSlice := brain.SplitBySize(plain, blockSize)
+	var salt []byte
+	if len(salts) > 0 {
+		salt = salts[0]
+	}
+	for _, v := range blockSlice {
+		cipher, err := rsa.EncryptOAEP(shash, randc.Reader, pub, v, salt)
+		if err != nil {
+			brain.LogGenerater(model.LogError, brain.tag, "RSAEncryptOAEP", err)
+		}
+		buf.Write(cipher)
+	}
+	return buf.Bytes()
+}
+
+//* RSA -> OAEP解密 */
+func (brain *BrainS) RSADecryptOAEP(cipher []byte, priv *rsa.PrivateKey, salts ...[]byte) []byte {
+	var buf bytes.Buffer
+	shash := sha256.New()
+	blockSize := (priv.N.BitLen() + 7) / 8
+	blockSlice := brain.SplitBySize(cipher, blockSize)
+	var salt []byte
+	if len(salts) > 0 {
+		salt = salts[0]
+	}
+	for _, v := range blockSlice {
+		plain, err := rsa.DecryptOAEP(shash, randc.Reader, priv, v, salt)
+		if err != nil {
+			brain.LogGenerater(model.LogError, brain.tag, "RSADecryptOAEP", err)
+		}
+		buf.Write(plain)
+	}
+	return buf.Bytes()
+}
+
+//* RSA -> PSS签名 */
+func (brain *BrainS) RSASignPSS(priv *rsa.PrivateKey, plain []byte) []byte {
+	shash := sha256.New()
+	shash.Write(plain)
+	signedPlain, err := rsa.SignPSS(randc.Reader, priv, crypto.SHA256, shash.Sum(nil), nil)
+	if err != nil {
+		brain.LogGenerater(model.LogError, brain.tag, "RSASignPSS", err)
+	}
+	return signedPlain
+}
+
+//* RSA -> PSS验证 */
+func (brain *BrainS) RSAVerifyPSS(pub *rsa.PublicKey, plain, signature []byte) bool {
+	shash := sha256.New()
+	shash.Write(plain)
+	err := rsa.VerifyPSS(pub, crypto.SHA256, shash.Sum(nil), signature, nil)
+	if err != nil {
+		brain.LogGenerater(model.LogError, brain.tag, "RSAVerifyPSS", err)
+		return false
+	}
+	return true
 }
 
 //* 反射获取方法名 */
